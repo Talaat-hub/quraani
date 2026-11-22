@@ -1,0 +1,181 @@
+import { Stack, useLocalSearchParams } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Switch, TextInput } from 'react-native';
+import { fmtRange, RangePicker } from '../../components/RangePicker';
+import {
+  addSession, continuePoint, deleteSession, getDay, getTracker, setGoal, setPaused, setPlanned,
+  setPostponed, setRating, setReminder,
+} from '../../db/repo';
+import { isRated, isTrackerId, type TrackerId } from '../../domain/trackers';
+import { displayQty, fmtAmount, fmtNum } from '../../i18n';
+import { validateRange, type GoalUnit, type Range } from '../../quran';
+import { useApp, useData } from '../../state';
+import { Button, Chip, ProgressBar, Row, Screen, Section, StatusBadge, Txt } from '../../ui';
+
+const INTERVALS = [30, 60, 120, 180, 240, 360];
+const PRESETS: Record<GoalUnit, number[]> = { ayah: [3, 5, 10, 20], page: [1, 2, 5, 10], quarter: [1, 2, 3, 4, 8] };
+
+export default function TrackerScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  return isTrackerId(id) ? <Tracker id={id} /> : null;
+}
+
+function Tracker({ id }: { id: TrackerId }) {
+  const { c, t, settings, act, today } = useApp();
+  const data = useData(async (db, day) => ({
+    rec: await getDay(db, id, day),
+    tracker: await getTracker(db, id),
+    cont: await continuePoint(db, id),
+  }), [id]);
+  const [draft, setDraft] = useState<Range | null>(null);
+  const [editPlan, setEditPlan] = useState(false);
+  const [custom, setCustom] = useState('');
+
+  // Default the "record" form to the planned portion until something is recorded, then to where the user left off.
+  useEffect(() => {
+    if (data?.rec && !draft) setDraft(!data.rec.sessions.length && data.rec.planned ? data.rec.planned : { from: data.cont, to: data.cont });
+  }, [data, draft]);
+
+  if (!data?.rec || !draft) return <Screen />;
+  const { rec, tracker } = data;
+  const color = c[id];
+  const goal = fmtAmount(t, rec.goalUnit, rec.goalAmount);
+  const open = rec.status !== 'completed';
+
+  return (
+    <Screen>
+      <Stack.Screen options={{ title: t(`tracker.${id}`) }} />
+
+      <Section title={t('tr.goal')} right={<StatusBadge status={rec.status} />}>
+        <Txt>{goal}</Txt>
+        {rec.sessions.length > 0 && (
+          <>
+            <Txt>{t('today.progress', { done: displayQty(rec.goalUnit, rec.done), goal })}</Txt>
+            {rec.pct != null && <ProgressBar pct={rec.pct} color={color} />}
+          </>
+        )}
+        {tracker.paused && <Txt muted size={14}>{t('tr.pausedNote')}</Txt>}
+      </Section>
+
+      {!tracker.paused && rec.planned && (
+        <Section title={t('tr.plan')}>
+          {editPlan ? (
+            <PlanEditor initial={rec.planned} onSave={(r) => { setEditPlan(false); act((db) => setPlanned(db, rec.id, r, today)); }} />
+          ) : (
+            <>
+              <Txt size={16}>{fmtRange(settings.lang, rec.planned)}</Txt>
+              {id !== 'muraja' && <Txt muted size={13}>{t('tr.continueNote')}</Txt>}
+              <Row>
+                {open && <Button title={t('today.markDone')} onPress={() => act((db) => addSession(db, rec.id, rec.planned!, today))} />}
+                <Button title={t('tr.changePlan')} kind="secondary" onPress={() => setEditPlan(true)} />
+              </Row>
+            </>
+          )}
+        </Section>
+      )}
+
+      <Section title={t('tr.record')}>
+        <RangePicker value={draft} onChange={setDraft} />
+        <Button
+          title={t('tr.save')} disabled={!!validateRange(draft)}
+          onPress={() => act((db) => addSession(db, rec.id, draft, today)).then(() => setDraft(null))}
+        />
+      </Section>
+
+      <Section title={t('tr.sessions')}>
+        {rec.sessions.length === 0 && <Txt muted>{t('tr.noSessions')}</Txt>}
+        {rec.sessions.map((s) => (
+          <Row key={s.id} style={{ justifyContent: 'space-between' }}>
+            <Txt style={{ flexShrink: 1 }}>{fmtRange(settings.lang, s)}</Txt>
+            <Button title={t('tr.delete')} kind="danger" onPress={() => act((db) => deleteSession(db, s.id, today))} />
+          </Row>
+        ))}
+      </Section>
+
+      {isRated(id) && (
+        <Section title={t('tr.rating')}>
+          {rec.sessions.length === 0 ? <Txt muted>{t('tr.ratingHint')}</Txt> : (
+            <>
+              <Row>
+                {[0, 1, 2, 3, 4, 5].map((n) => (
+                  <Chip key={n} label={fmtNum(settings.lang, n)} selected={rec.rating === n} color={color}
+                    onPress={() => act((db) => setRating(db, rec.id, rec.rating === n ? null : n, today))} />
+                ))}
+              </Row>
+              {rec.rating != null && <Txt muted>{t(`rating.${rec.rating}` as 'rating.0')}</Txt>}
+            </>
+          )}
+        </Section>
+      )}
+
+      {!tracker.paused && (open || rec.postponed) && (
+        <Section title={rec.postponed ? t('status.postponed') : t('tr.postpone')}>
+          <Txt muted size={14}>{t('tr.postponeHint')}</Txt>
+          <Button
+            title={rec.postponed ? t('tr.unpostpone') : t('tr.postpone')} kind="secondary"
+            onPress={() => act((db) => setPostponed(db, rec.id, !rec.postponed, today))}
+          />
+        </Section>
+      )}
+
+      <Section title={t('tr.goal')}>
+        <Row>
+          {(['ayah', 'page', 'quarter'] as const).map((u) => (
+            <Chip key={u} label={t(`unit.${u}`)} selected={tracker.goalUnit === u}
+              onPress={() => u !== tracker.goalUnit && act((db) => setGoal(db, id, u, PRESETS[u][0], today))} />
+          ))}
+        </Row>
+        <Row>
+          {PRESETS[tracker.goalUnit].map((n) => (
+            <Chip key={n} label={fmtAmount(t, tracker.goalUnit, n)} selected={tracker.goalAmount === n}
+              onPress={() => act((db) => setGoal(db, id, tracker.goalUnit, n, today))} />
+          ))}
+        </Row>
+        {tracker.goalUnit !== 'quarter' && (
+          <Row>
+            <TextInput
+              value={custom} onChangeText={setCustom} keyboardType="number-pad" placeholder={t('tr.customAmount')}
+              placeholderTextColor={c.muted} style={{ flexGrow: 1, minHeight: 44, borderWidth: 1, borderColor: c.border, borderRadius: 10, paddingHorizontal: 12, color: c.text }}
+            />
+            <Button title={t('tr.save')} kind="secondary" disabled={!/^\d+$/.test(custom) || +custom < 1}
+              onPress={() => act((db) => setGoal(db, id, tracker.goalUnit, +custom, today)).then(() => setCustom(''))} />
+          </Row>
+        )}
+      </Section>
+
+      <Section title={t('tr.reminders')}>
+        <Row style={{ justifyContent: 'space-between' }}>
+          <Txt>{t('tr.remindersOn')}</Txt>
+          <Switch value={tracker.reminderEnabled} trackColor={{ true: color }}
+            onValueChange={(v) => act((db) => setReminder(db, id, v, tracker.reminderIntervalMin))} />
+        </Row>
+        {tracker.reminderEnabled && (
+          <Row>
+            <Txt muted>{t('tr.every')}</Txt>
+            {INTERVALS.map((m) => (
+              <Chip key={m} label={m < 60 ? t('unit.min', { n: m }) : t('unit.hour', { n: m / 60 })}
+                selected={tracker.reminderIntervalMin === m}
+                onPress={() => act((db) => setReminder(db, id, true, m))} />
+            ))}
+          </Row>
+        )}
+      </Section>
+
+      <Button
+        title={tracker.paused ? t('tr.resume') : t('tr.pause')} kind={tracker.paused ? 'primary' : 'secondary'}
+        onPress={() => act((db) => setPaused(db, id, !tracker.paused, today))}
+      />
+    </Screen>
+  );
+}
+
+function PlanEditor({ initial, onSave }: { initial: Range; onSave: (r: Range) => void }) {
+  const { t } = useApp();
+  const [r, setR] = useState(initial);
+  return (
+    <>
+      <RangePicker value={r} onChange={setR} />
+      <Button title={t('tr.save')} disabled={!!validateRange(r)} onPress={() => onSave(r)} />
+    </>
+  );
+}
