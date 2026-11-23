@@ -42,6 +42,7 @@ export function AppProvider({ initial, children }: PropsWithChildren<{ initial: 
 
   // Foregrounding handles new days, timezone changes and time spent with the app closed.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- refresh() sets state only after awaiting the DB (external sync).
     refresh();
     const sub = AppState.addEventListener('change', (s) => s === 'active' && refresh());
     return () => sub.remove();

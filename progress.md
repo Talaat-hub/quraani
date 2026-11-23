@@ -22,8 +22,16 @@ Repo: https://github.com/Talaat-hub/quraani (public).
 
 Environment notes (this dev machine): a global npm config `allow-scripts=@oracle/suitecloud-cli` breaks
 project installs with `EALLOWSCRIPTS`. Workaround: run installs as `npm_config_allow_scripts= npm install`
-(bash) or `$env:npm_config_allow_scripts=''; npm install` (PowerShell). No Android SDK / emulator installed;
-iOS builds need macOS or EAS.
+(bash) or `$env:npm_config_allow_scripts=''; npm install` (PowerShell). `npx expo install` fails at its npm
+step the same way: it still edits package.json, then run the npm install workaround.
+Android toolchain (set up 2026-11-23): JDK 17 (Adoptium), SDK at `C:\Android\Sdk` (`ANDROID_HOME`, user PATH),
+platform 37, build-tools 37.0.0, NDK 27.1.12297006, CMake 3.22.1 + 3.31.6, emulator AVD `Quraani_API36`
+(Android 16, x86_64, WHPX). Windows build gotchas, all hit and fixed (see README "Local Android builds on Windows"):
+SDK path with a space breaks NDK linking; the old project path `G:\Mahmoud\Under Deployment\Quraani` exceeds
+ninja's path limit → project now lives at **`G:\dev\quraani`**; CMake 3.22's ninja 1.10 ignores long paths →
+`cmake.dir` → 3.31.6 in `android/local.properties`; Java NIO loopback bug → user env
+`JAVA_TOOL_OPTIONS=-Djdk.net.unixdomain.tmpdir=C:\Temp\jdk`. The agent shell sets
+`NoDefaultCurrentDirectoryInExePath=1`, so call `.\gradlew.bat` with a path. iOS builds need macOS or EAS.
 
 Skills/plugins: the available Claude Code skills/plugins are business/marketing oriented; none cover React
 Native, Expo, SQLite or Quran data, so none were installed. Expo docs for SDK 58 were read directly.
@@ -86,12 +94,13 @@ Decisions:
   cancel on completion/postpone/pause, re-plan on foreground (day/timezone changes)
 
 ## 5. In-Progress Features
-- None half-written. UI has **not been run on a device/emulator yet** (no Android SDK here); only typecheck,
-  unit tests, `expo export --platform android` bundle and expo-doctor (20/20) were verified.
+- None half-written. Debug build runs on the Android 16 emulator (2026-11-23): dashboard renders, "Mark planned
+  as done" → Completed, AR/EN switch reloads into the correct RTL/LTR layout. Not yet walked: record form,
+  surah picker, history, settings time fields, notifications; no real phone or iOS run yet.
 
 ## 6. Remaining Tasks (priority order)
-1. [ ] Run on a real Android device + iOS (dev build: `npx expo run:android` or `eas build --profile development`;
-       RTL switching does not work in Expo Go). Fix layout issues found, especially RTL.
+1. [~] Run on device. Done: local Android dev build + emulator, dashboard and RTL switch. Left: walk every
+       screen in EN and AR on the emulator, then a real Android phone and iOS (EAS, no Mac here).
 2. [ ] Verify notifications on device: delivery while app is killed, Snooze action with app killed
        (iOS may not run JS for a background action; fallback = it fires at the next planned slot), tap → tracker.
 3. [ ] Backup/restore (export/import JSON via share sheet + document picker).
@@ -136,7 +145,13 @@ de-duplication, delete all). `npx tsc --noEmit` clean. `npx expo-doctor` 20/20.
 Missing: UI/component tests, on-device notification tests, migration-upgrade tests (only v1 exists).
 
 ## 10. Known Issues and Risks
-- Not run on device yet (see §5). RTL forcing requires a dev/production build, not Expo Go.
+- Only partly exercised on an emulator (see §5). RTL forcing requires a dev/production build, not Expo Go.
+  In debug builds `Updates.reloadAsync()` throws, so `syncDirection` falls back to `DevSettings.reload()`;
+  the release-build path (`reloadAsync`) is untested.
+- Local Android builds on Windows need the short project path and `cmake.dir` setup (§2, README).
+- Dev only: a Fast Refresh while boot is running can log "boot failed: Access to closed resource" (old SQLite
+  handle closed by the remount). Not seen on cold start; restart the app if it appears.
+- Lint (`npx expo lint`, eslint-config-expo) added 2026-11-23 and clean; two rule suppressions are commented in place.
 - Notification times can be delayed by Android Doze / OEM battery savers; exact alarms intentionally not requested.
 - Snooze from a notification while the app is killed may not execute on iOS (no JS runtime for background actions).
 - Page/hizb fractions weighted by ayah count, not letters (documented shortcut).
@@ -147,9 +162,11 @@ Missing: UI/component tests, on-device notification tests, migration-upgrade tes
 ## 11. Last Completed Checkpoint
 2026-11-22: Phases 1–5 MVP code complete (foundation, Quran engine, trackers, dashboard, history, settings,
 local reminders), tests/typecheck/bundle green, docs written, initial push to GitHub.
+2026-11-23: Android toolchain installed, project moved to `G:\dev\quraani`, debug APK built and running on the
+emulator; added `expo-system-ui` (Android dark/light UI style) and the dev-build RTL reload fallback.
 
 ## 12. Next Actions
-1. Install Android Studio (or use EAS) and run `npx expo run:android`; walk the main flow in EN and AR.
+1. Walk every screen in EN and AR on the emulator (`npx expo run:android`, AVD `Quraani_API36`); fix what breaks.
 2. Test reminders on device: set interval 30m, complete a tracker → its pending reminders disappear
    (`getAllScheduledNotificationsAsync`), pause → none, kill app → reminders still arrive.
 3. Then implement backup/restore (Remaining Tasks #3) and UI tests (#4).

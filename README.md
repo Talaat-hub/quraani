@@ -21,6 +21,17 @@ npx expo run:android     # dev build on device/emulator (or: npx expo run:ios on
 Arabic right-to-left layout and notification actions need a development build; they don't fully work in Expo Go.
 Cloud builds: `npx eas-cli@latest build --platform android|ios`.
 
+### Local Android builds on Windows
+
+React Native's C++ build breaks on long paths and on paths with spaces, so:
+- Keep the project at a short path without spaces (e.g. `G:\dev\quraani`).
+- Install the Android SDK at a path without spaces (e.g. `C:\Android\Sdk`) and set `ANDROID_HOME` to it.
+- Use CMake 3.31+ (its `ninja` handles long paths): install `cmake/3.31.6` with the SDK manager and add
+  `cmake.dir=C\:\\Android\\Sdk\\cmake\\3.31.6` to `android/local.properties` (per machine, git-ignored;
+  re-add it after `npx expo prebuild --clean`).
+- If Java tools fail with `Unable to establish loopback connection`, set
+  `JAVA_TOOL_OPTIONS=-Djdk.net.unixdomain.tmpdir=C:\Temp\jdk` (a Java bug with some temp folder paths).
+
 ## How it works
 
 - Quran references are stored as surah + ayah; ranges may cross surahs and are validated.

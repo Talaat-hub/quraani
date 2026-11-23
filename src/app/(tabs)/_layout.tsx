@@ -5,8 +5,9 @@ import { useApp } from '../../state';
 
 export default function TabsLayout() {
   const { c, t } = useApp();
-  const icon = (name: keyof typeof Ionicons.glyphMap) => ({ color, size }: { color: ColorValue; size: number }) =>
-    <Ionicons name={name} color={color as string} size={size} />;
+  const icon = (name: keyof typeof Ionicons.glyphMap) => function TabIcon({ color, size }: { color: ColorValue; size: number }) {
+    return <Ionicons name={name} color={color as string} size={size} />;
+  };
   return (
     <Tabs screenOptions={{
       headerStyle: { backgroundColor: c.bg }, headerTintColor: c.text, headerShadowVisible: false,

@@ -1,5 +1,5 @@
 import * as Updates from 'expo-updates';
-import { I18nManager, Platform } from 'react-native';
+import { DevSettings, I18nManager, Platform } from 'react-native';
 import { getSettings, setSetting } from './db/repo';
 import type { Db } from './db/schema';
 import { readSettings } from './settings';
@@ -20,6 +20,8 @@ export async function syncDirection(db: Db): Promise<boolean> {
     await Updates.reloadAsync();
     return true;
   } catch {
+    // expo-updates can't reload in debug builds; a dev reload re-reads the direction.
+    if (__DEV__) { DevSettings.reload(); return true; }
     return false; // direction applies on next launch
   }
 }

@@ -1,5 +1,5 @@
 import { Stack, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Switch, TextInput } from 'react-native';
 import { fmtRange, RangePicker } from '../../components/RangePicker';
 import {
@@ -31,13 +31,10 @@ function Tracker({ id }: { id: TrackerId }) {
   const [editPlan, setEditPlan] = useState(false);
   const [custom, setCustom] = useState('');
 
-  // Default the "record" form to the planned portion until something is recorded, then to where the user left off.
-  useEffect(() => {
-    if (data?.rec && !draft) setDraft(!data.rec.sessions.length && data.rec.planned ? data.rec.planned : { from: data.cont, to: data.cont });
-  }, [data, draft]);
-
-  if (!data?.rec || !draft) return <Screen />;
+  if (!data?.rec) return <Screen />;
   const { rec, tracker } = data;
+  // Until edited, the "record" form shows the planned portion (nothing recorded yet) or where the user left off.
+  const range = draft ?? (!rec.sessions.length && rec.planned ? rec.planned : { from: data.cont, to: data.cont });
   const color = c[id];
   const goal = fmtAmount(t, rec.goalUnit, rec.goalAmount);
   const open = rec.status !== 'completed';
@@ -75,10 +72,10 @@ function Tracker({ id }: { id: TrackerId }) {
       )}
 
       <Section title={t('tr.record')}>
-        <RangePicker value={draft} onChange={setDraft} />
+        <RangePicker value={range} onChange={setDraft} />
         <Button
-          title={t('tr.save')} disabled={!!validateRange(draft)}
-          onPress={() => act((db) => addSession(db, rec.id, draft, today)).then(() => setDraft(null))}
+          title={t('tr.save')} disabled={!!validateRange(range)}
+          onPress={() => act((db) => addSession(db, rec.id, range, today)).then(() => setDraft(null))}
         />
       </Section>
 

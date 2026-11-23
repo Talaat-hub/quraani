@@ -27,6 +27,7 @@ export async function setupNotifications(lang: 'ar' | 'en') {
     handleNotification: async () => ({ shouldPlaySound: true, shouldSetBadge: false, shouldShowBanner: true, shouldShowList: true }),
   });
   if (Platform.OS === 'android') {
+    // eslint-disable-next-line import/namespace -- AndroidImportance is re-exported from a types module the rule can't follow; tsc checks it.
     await N.setNotificationChannelAsync(CHANNEL, { name: t('set.notifications'), importance: N.AndroidImportance.DEFAULT });
   }
   await N.setNotificationCategoryAsync(CATEGORY, [
