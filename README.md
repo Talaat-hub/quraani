@@ -35,7 +35,7 @@ React Native's C++ build breaks on long paths and on paths with spaces, so:
 ## How it works
 
 - Quran references are stored as surah + ayah; ranges may cross surahs and are validated.
-- Goals are in ayahs, pages or hizb (¼, ½, ¾, 1, 2). Pages and hizb follow the **Madani Mushaf (604 pages)**.
+- Goals are in ayahs, pages or hizb, any amount (hizb in quarter steps). Reminder intervals go from 1 minute to 24 hours. Pages and hizb follow the **Madani Mushaf (604 pages)**.
 - Each day keeps its original goal separately from what you actually recorded, so partial days show
   "Started but not finished – بدأ ولم يكمل" without losing the target.
 - Reminders are scheduled as local notifications for today and the next two days, inside your reminder window

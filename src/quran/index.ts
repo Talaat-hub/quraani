@@ -112,3 +112,12 @@ export function nextAyah(r: AyahRef): AyahRef {
   const i = toIndex(r);
   return fromIndex(i === AYAH_COUNT ? 1 : i + 1);
 }
+
+/** Largest daily goal per unit (the whole Quran). */
+export const UNIT_MAX: Record<GoalUnit, number> = { ayah: AYAH_COUNT, page: PAGE_COUNT, quarter: QUARTER_COUNT };
+
+/** Goal amount from a number typed in the display unit (hizb for quarter goals, in ¼ steps); null if invalid. */
+export function toGoalAmount(unit: GoalUnit, n: number): number | null {
+  const amount = unit === 'quarter' ? n * 4 : n;
+  return Number.isInteger(amount) && amount >= 1 && amount <= UNIT_MAX[unit] ? amount : null;
+}

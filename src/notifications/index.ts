@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 import { getDay, getSettings, getTrackers, setSnooze } from '../db/repo';
 import type { Db } from '../db/schema';
 import { dayKey } from '../domain/dates';
-import { planReminders } from '../domain/reminders';
+import { MAX_PENDING, planReminders } from '../domain/reminders';
 import { needsReminder } from '../domain/status';
 import { isTrackerId, type TrackerId } from '../domain/trackers';
 import { fmtAmount, makeT } from '../i18n';
@@ -67,7 +67,7 @@ async function doSync(db: Db) {
       needsToday: rec ? needsReminder(rec.status) : !tr.paused, snoozedUntil: tr.snoozedUntil,
     };
   }));
-  const plan = granted ? planReminders(Date.now(), settings, states) : [];
+  const plan = granted ? planReminders(Date.now(), settings, states, 3, Platform.OS === 'android' ? MAX_PENDING.android : MAX_PENDING.ios) : [];
 
   // Diff against what's scheduled; ids are deterministic, so nothing is ever scheduled twice.
   const want = new Map(plan.map((p) => [p.id, p]));

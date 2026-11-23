@@ -1,5 +1,6 @@
 import { addDays, dayKey, fromHHMM, toHHMM } from '../src/domain/dates';
-import { planReminders, type ReminderSettings, type TrackerReminderState } from '../src/domain/reminders';
+import { MAX_PENDING, planReminders, type ReminderSettings, type TrackerReminderState } from '../src/domain/reminders';
+import { parseNum } from '../src/i18n';
 import { completion, deriveStatus, needsReminder } from '../src/domain/status';
 
 describe('status', () => {
@@ -84,4 +85,33 @@ describe('planReminders', () => {
   it('ids are deterministic so re-planning never duplicates', () => {
     expect(planReminders(now, settings, [tracker()]).map((p) => p.id)).toEqual(planReminders(now, settings, [tracker()]).map((p) => p.id));
   });
+});
+
+describe('short intervals and no daily limit', () => {
+  const settings: ReminderSettings = { enabled: true, windowStart: 8 * 60, windowEnd: 22 * 60, quietStart: 0, quietEnd: 0, maxPerDay: 0 };
+  const tracker = (p: Partial<TrackerReminderState> = {}): TrackerReminderState =>
+    ({ id: 'hifz', enabled: true, intervalMin: 1, paused: false, needsToday: true, snoozedUntil: null, ...p });
+  const now = new Date(2026, 10, 22, 13, 0, 30).getTime();
+
+  it('every minute until the goal is done, up to what the OS can hold', () => {
+    const plan = planReminders(now, settings, [tracker()], 3, MAX_PENDING.android);
+    expect(plan).toHaveLength(MAX_PENDING.android);
+    expect(plan[1].at - plan[0].at).toBe(60_000);
+    expect(new Date(plan[0].at).getMinutes()).toBe(1); // 13:01, first slot after now
+    expect(planReminders(now, settings, [tracker()])).toHaveLength(MAX_PENDING.ios);
+  });
+  it('no limit (0) keeps every slot of the day; a number still caps', () => {
+    const day = planReminders(now, settings, [tracker({ intervalMin: 60 })], 1);
+    expect(day).toHaveLength(9); // 14:00 … 22:00
+    expect(planReminders(now, { ...settings, maxPerDay: 3 }, [tracker({ intervalMin: 60 })], 1)).toHaveLength(3);
+  });
+  it('stops once the goal is done or the tracker is paused', () => {
+    expect(planReminders(now, settings, [tracker({ needsToday: false })], 1)).toEqual([]);
+    expect(planReminders(now, settings, [tracker({ paused: true })], 1)).toEqual([]);
+  });
+});
+
+describe('parseNum', () => {
+  it.each([['20', 20], ['١٫٥', 1.5], ['۲۰', 20], ['1,5', 1.5], [' 7 ', 7], ['', NaN], ['1.', NaN], ['-3', NaN], ['abc', NaN]] as const)(
+    '%p -> %p', (s, n) => expect(parseNum(s)).toBe(n));
 });

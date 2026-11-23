@@ -2,7 +2,7 @@ import { addDays } from '../domain/dates';
 import { completion, deriveStatus, type Status } from '../domain/status';
 import { TRACKERS, type TrackerId } from '../domain/trackers';
 import {
-  ayahSet, measure, nextAyah, planPortion, toIndex, validateRange, round,
+  ayahSet, measure, nextAyah, planPortion, toIndex, validateRange, round, UNIT_MAX,
   type AyahRef, type GoalUnit, type Range,
 } from '../quran';
 import type { Db } from './schema';
@@ -36,14 +36,15 @@ export type DayRecord = {
 };
 
 const BACKFILL_DAYS = 60;
+export const MAX_INTERVAL_MIN = 24 * 60;
 
 type TrackerRow = {
   id: TrackerId; goal_unit: GoalUnit; goal_amount: number; paused: number;
-  reminder_enabled: number; reminder_interval_min: number; snoozed_until: number | null;
+  reminder_enabled: number; remind_every_min: number; snoozed_until: number | null;
 };
 const toTracker = (r: TrackerRow): Tracker => ({
   id: r.id, goalUnit: r.goal_unit, goalAmount: r.goal_amount, paused: !!r.paused,
-  reminderEnabled: !!r.reminder_enabled, reminderIntervalMin: r.reminder_interval_min, snoozedUntil: r.snoozed_until,
+  reminderEnabled: !!r.reminder_enabled, reminderIntervalMin: r.remind_every_min, snoozedUntil: r.snoozed_until,
 });
 
 export async function getTrackers(db: Db): Promise<Tracker[]> {
@@ -191,15 +192,15 @@ export async function setPlanned(db: Db, recordId: number, range: Range, today: 
 
 /** Changes the goal from today on. Past records keep their snapshot. */
 export async function setGoal(db: Db, id: TrackerId, unit: GoalUnit, amount: number, today: string) {
-  if (!(amount > 0 && amount <= 6236)) throw new Error('invalid goal amount');
+  if (!(amount > 0 && amount <= UNIT_MAX[unit])) throw new Error('invalid goal amount');
   await ensureDays(db, today);
   await db.withTransactionAsync(async () => {
     await db.runAsync('UPDATE trackers SET goal_unit=?, goal_amount=?, updated_at=? WHERE id=?', [unit, amount, Date.now(), id]);
     await db.runAsync('UPDATE day_records SET goal_unit=?, goal_amount=?, updated_at=? WHERE tracker_id=? AND day=?', [unit, amount, Date.now(), id, today]);
   });
-  // Re-plan today's portion only if nothing was recorded yet.
+  // Re-plan today's portion for the new goal from the same start, so portions already recorded still count.
   const rec = await getDay(db, id, today);
-  if (rec && !rec.sessions.length) {
+  if (rec) {
     const from = rec.planned?.from ?? await continuePoint(db, id);
     await setPlanned(db, rec.id, planPortion(toIndex(from), unit, amount), today);
   }
@@ -212,8 +213,8 @@ export async function setPaused(db: Db, id: TrackerId, paused: boolean, today: s
 }
 
 export async function setReminder(db: Db, id: TrackerId, enabled: boolean, intervalMin: number) {
-  if (!(Number.isInteger(intervalMin) && intervalMin >= 15)) throw new Error('interval must be >= 15 min');
-  await db.runAsync('UPDATE trackers SET reminder_enabled=?, reminder_interval_min=?, updated_at=? WHERE id=?', [enabled ? 1 : 0, intervalMin, Date.now(), id]);
+  if (!(Number.isInteger(intervalMin) && intervalMin >= 1 && intervalMin <= MAX_INTERVAL_MIN)) throw new Error('interval must be 1 min to 24 h');
+  await db.runAsync('UPDATE trackers SET reminder_enabled=?, remind_every_min=?, updated_at=? WHERE id=?', [enabled ? 1 : 0, intervalMin, Date.now(), id]);
 }
 
 export async function setSnooze(db: Db, id: TrackerId, until: number | null) {
@@ -224,9 +225,9 @@ export async function deleteAllData(db: Db) {
   await db.withTransactionAsync(async () => {
     await db.execAsync('DELETE FROM sessions; DELETE FROM day_records; DELETE FROM settings;');
     await db.execAsync(`UPDATE trackers SET paused=0, snoozed_until=NULL, reminder_enabled=1;
-      UPDATE trackers SET goal_unit='ayah', goal_amount=5, reminder_interval_min=120 WHERE id='hifz';
-      UPDATE trackers SET goal_unit='page', goal_amount=2, reminder_interval_min=180 WHERE id='muraja';
-      UPDATE trackers SET goal_unit='quarter', goal_amount=4, reminder_interval_min=60 WHERE id='tilawah';`);
+      UPDATE trackers SET goal_unit='ayah', goal_amount=5, remind_every_min=120 WHERE id='hifz';
+      UPDATE trackers SET goal_unit='page', goal_amount=2, remind_every_min=180 WHERE id='muraja';
+      UPDATE trackers SET goal_unit='quarter', goal_amount=4, remind_every_min=60 WHERE id='tilawah';`);
   });
 }
 

@@ -59,6 +59,12 @@ export const MIGRATIONS: string[] = [
     ('muraja', 'page', 2, 180, 0),
     ('tilawah', 'quarter', 4, 60, 0);
   `,
+  // v2: reminder intervals down to 1 minute. SQLite can't relax v1's CHECK (>= 15) without a table
+  // rebuild, so the interval moves to a new column; trackers.reminder_interval_min is unused from v2 on.
+  `
+  ALTER TABLE trackers ADD COLUMN remind_every_min INTEGER NOT NULL DEFAULT 60 CHECK (remind_every_min >= 1);
+  UPDATE trackers SET remind_every_min = reminder_interval_min;
+  `,
 ];
 
 export async function migrate(db: Db): Promise<void> {

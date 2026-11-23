@@ -54,8 +54,8 @@ export default function Settings() {
             <Txt muted size={13}>{t('set.quietNote')}</Txt>
             <Txt muted size={14}>{t('set.maxPerDay')}</Txt>
             <Row>
-              {[2, 4, 6, 10, 20].map((n) => (
-                <Chip key={n} label={fmtNum(lang, n)} selected={settings.maxPerDay === n} onPress={() => save('maxPerDay', n)} />
+              {[0, 2, 4, 6, 10, 20].map((n) => (
+                <Chip key={n} label={n ? fmtNum(lang, n) : t('set.noLimit')} selected={settings.maxPerDay === n} onPress={() => save('maxPerDay', n)} />
               ))}
             </Row>
             <Txt muted size={13}>{t('set.osNote')}</Txt>

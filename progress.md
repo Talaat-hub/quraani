@@ -55,6 +55,9 @@ Decisions:
 4. **Units**: goal in ayahs, pages or hizb *quarters* (¼=1 … 1 hizb=4, 2 hizb=8). Partial pages/quarters are
    weighted by ayah count (shortcut documented in `src/quran/index.ts`; upgrade = weight by letter count).
    `planPortion` and `measure` share the same weights so a planned portion always measures ≥ the goal.
+   Users pick presets or type any amount: whole ayahs (≤6236), whole pages (≤604) or hizb in ¼ steps (≤60),
+   Western or Arabic-Indic digits (`toGoalAmount`, `parseNum`). Changing the goal re-plans today from the same
+   start, even after recording (recorded portions keep counting).
 5. **Target vs actual**: each `day_records` row snapshots the goal; actual progress is the union of `sessions`
    (overlaps on the same day counted once). Recording never touches the target.
 6. **Statuses are derived, never stored** (`src/domain/status.ts`):
@@ -68,8 +71,10 @@ Decisions:
    Al-Fatiha after An-Nas). Nothing is silently carried over: the remaining portion simply becomes tomorrow's
    suggested start, shown as "Continues from your last recorded ayah". Revision plans are freely editable.
 9. **Reminders** (`planReminders`, pure + tested): for today and the next 2 days, every `interval` minutes
-   inside the reminder window, skipping quiet hours (may wrap midnight), capped per tracker per day and to 60
-   pending total (iOS keeps 64). Future days are scheduled pessimistically so reminders continue if the app is
+   inside the reminder window, skipping quiet hours (may wrap midnight). Interval: presets or any 1–1440 min.
+   Per-tracker daily cap is optional (default "No limit" = remind until done). Total pending is capped by
+   what the OS holds: 60 on iOS (limit 64), 400 on Android (~500 alarms/app), earliest first; with very short
+   intervals that is how far ahead reminders reach until the next re-plan. Future days are scheduled pessimistically so reminders continue if the app is
    never opened; any write or app foreground re-plans and diffs against scheduled notifications by
    deterministic id (`tracker-day-HH:MM`) → no duplicates. Snooze = suppress until now+30 min and fire once then.
    Sync calls are serialized through a promise queue.
@@ -80,8 +85,9 @@ Decisions:
 
 ## 4. Implemented Features
 - Quran metadata, range validation, page/hizb/juz lookup, measure, plan, continuation (tested)
-- SQLite schema v1 + migration runner; repository with validation (tested on node:sqlite)
-- Three independent trackers: goal (ayah/page/hizb presets + custom ayah/page amount), planned portion
+- SQLite schema v2 + migration runner; repository with validation (tested on node:sqlite)
+- Three independent trackers: goal (presets + custom amount in ayahs, pages or hizb), custom reminder
+  interval (1 min – 24 h), planned portion
   (auto + editable), record multiple portions/day, delete portion (today), mark planned as done, postpone/undo,
   pause/resume, 0–5 rating (only after an attempt; 0 ≠ not attempted; cleared if the attempt is removed)
 - Dashboard: per-tracker card (goal, progress, % only once started, status, planned portion, quick actions),
@@ -127,22 +133,26 @@ Decisions:
 - `__tests__/` — quran, domain, repo tests
 
 ## 8. Database Status
-Schema version 1 (`PRAGMA user_version = 1`), file `quraani.db`:
-- `settings(key PK, value)` — lang, theme, notif_enabled, window_start/end, quiet_start/end (minutes), max_per_day, rtl_applied
-- `trackers(id PK in hifz|muraja|tilawah, goal_unit, goal_amount, paused, reminder_enabled, reminder_interval_min ≥15, snoozed_until ms)`
+Schema version 2 (`PRAGMA user_version = 2`), file `quraani.db`:
+- `settings(key PK, value)` — lang, theme, notif_enabled, window_start/end, quiet_start/end (minutes), max_per_day (0/absent = no limit), rtl_applied
+- `trackers(id PK in hifz|muraja|tilawah, goal_unit, goal_amount, paused, reminder_enabled, remind_every_min ≥1, snoozed_until ms)`
+  — v2 added `remind_every_min` (copied from v1's `reminder_interval_min`, whose CHECK ≥15 can't be relaxed
+  without a table rebuild); `reminder_interval_min` is unused from v2 on.
 - `day_records(id, tracker_id FK, day 'YYYY-MM-DD', goal snapshot, planned range, postponed, paused, rating 0–5|NULL, UNIQUE(tracker_id, day))`
 - `sessions(id, record_id FK ON DELETE CASCADE, from/to surah+ayah, created_at)`
 Migrations are append-only in `MIGRATIONS`; never edit a shipped one. A DB newer than the app throws.
 Notification delivery history is not stored: the OS does not report local delivery to a killed app.
 
 ## 9. Testing Status
-`npm test` → 3 suites, 43 tests, all passing (2026-11-22):
+`npm test` → 3 suites, 73 tests, all passing (2026-11-23). Added since 2026-11-22: goal re-plan after
+recording, custom goal amounts per unit, Arabic-digit parsing, 1-minute/no-limit/OS-cap reminder plans,
+v1→v2 migration keeps intervals. Earlier coverage:
 quran metadata integrity & boundaries, ref round-trip for all 6236 ayahs, range validation, measure/plan per
 unit; status table; dates; reminder planning (window, quiet hours incl. midnight wrap, caps, snooze,
 paused/disabled/completed, deterministic ids); repository (migrations, partial vs target, postpone→partial,
 validation, past-day lock, rating rules, backfill + goal snapshots + continuation, pause isolation, stats
 de-duplication, delete all). `npx tsc --noEmit` clean. `npx expo-doctor` 20/20.
-Missing: UI/component tests, on-device notification tests, migration-upgrade tests (only v1 exists).
+Missing: UI/component tests, on-device notification delivery tests.
 
 ## 10. Known Issues and Risks
 - Only partly exercised on an emulator (see §5). RTL forcing requires a dev/production build, not Expo Go.
@@ -153,6 +163,10 @@ Missing: UI/component tests, on-device notification tests, migration-upgrade tes
   handle closed by the remount). Not seen on cold start; restart the app if it appears.
 - Lint (`npx expo lint`, eslint-config-expo) added 2026-11-23 and clean; two rule suppressions are commented in place.
 - Notification times can be delayed by Android Doze / OEM battery savers; exact alarms intentionally not requested.
+  Very short intervals (1–5 min) may be grouped while the phone is idle.
+- Pending-reminder cap: with very short intervals reminders run out after cap × interval (e.g. 1 min, one
+  tracker: ~6.6 h on Android, 1 h on iOS) unless the app re-plans (open, any change, tapping a reminder).
+  Possible upgrade: Android background task (expo-background-task) to top up while the app is closed.
 - Snooze from a notification while the app is killed may not execute on iOS (no JS runtime for background actions).
 - Page/hizb fractions weighted by ayah count, not letters (documented shortcut).
 - Template icons/splash still in `assets/`.
@@ -164,6 +178,8 @@ Missing: UI/component tests, on-device notification tests, migration-upgrade tes
 local reminders), tests/typecheck/bundle green, docs written, initial push to GitHub.
 2026-11-23: Android toolchain installed, project moved to `G:\dev\quraani`, debug APK built and running on the
 emulator; added `expo-system-ui` (Android dark/light UI style) and the dev-build RTL reload fallback.
+Later: goal change re-plans after recording; custom amounts for all units incl. hizb; custom reminder interval
+(≥1 min, DB v2); "No limit" daily cap (new default); per-platform pending cap. Checked on the emulator in AR.
 
 ## 12. Next Actions
 1. Walk every screen in EN and AR on the emulator (`npx expo run:android`, AVD `Quraani_API36`); fix what breaks.

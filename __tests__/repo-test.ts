@@ -1,6 +1,6 @@
 import {
   addSession, deleteAllData, deleteSession, ensureDays, getDay, getHistory, getStats, getTracker,
-  setGoal, setPaused, setPostponed, setRating,
+  setGoal, setPaused, setPostponed, setRating, setReminder,
 } from '../src/db/repo';
 import { migrate, MIGRATIONS, type Db } from '../src/db/schema';
 
@@ -89,6 +89,16 @@ it('backfills missed days, snapshots goals, continues from the last recorded poi
   expect(hist[0].planned).toEqual({ from: r(1, 4), to: r(2, 6) });
 });
 
+it('changing the goal after recording re-plans today from the same start', async () => {
+  await ensureDays(db, T);
+  const rec = (await getDay(db, 'hifz', T))!;
+  await addSession(db, rec.id, { from: r(1, 1), to: r(1, 5) }, T); // planned 5 done
+  await setGoal(db, 'hifz', 'ayah', 20, T);
+  const after = (await getDay(db, 'hifz', T))!;
+  expect(after.planned).toEqual({ from: r(1, 1), to: r(2, 13) }); // 7 + 13 = 20 ayahs
+  expect(after).toMatchObject({ goalAmount: 20, done: 5, status: 'in_progress' });
+});
+
 it('pause is per tracker and recorded on the day', async () => {
   await setPaused(db, 'muraja', true, T);
   expect((await getTracker(db, 'muraja')).paused).toBe(true);
@@ -115,4 +125,23 @@ it('deleteAllData wipes records and restores defaults', async () => {
   await deleteAllData(db);
   expect(await getHistory(db, 'hifz', T)).toEqual([]);
   expect((await getTracker(db, 'hifz')).paused).toBe(false);
+});
+
+it('v2 migration keeps each tracker interval and allows 1-minute reminders', async () => {
+  const old = nodeDb();
+  await old.execAsync(MIGRATIONS[0] + '; PRAGMA user_version = 1;');
+  await old.execAsync("UPDATE trackers SET reminder_interval_min = 45 WHERE id = 'hifz'");
+  await migrate(old);
+  expect((await getTracker(old, 'hifz')).reminderIntervalMin).toBe(45);
+  await setReminder(old, 'hifz', true, 1);
+  expect((await getTracker(old, 'hifz')).reminderIntervalMin).toBe(1);
+  await expect(setReminder(old, 'hifz', true, 0)).rejects.toThrow();
+  await expect(setReminder(old, 'hifz', true, 1.5)).rejects.toThrow();
+});
+
+it('goal amounts are limited per unit', async () => {
+  await setGoal(db, 'tilawah', 'quarter', 6, T); // 1.5 hizb
+  expect((await getTracker(db, 'tilawah')).goalAmount).toBe(6);
+  await expect(setGoal(db, 'tilawah', 'quarter', 241, T)).rejects.toThrow();
+  await expect(setGoal(db, 'muraja', 'page', 605, T)).rejects.toThrow();
 });

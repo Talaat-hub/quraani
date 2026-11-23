@@ -26,3 +26,12 @@ export function fmtAmount(t: T, unit: GoalUnit, amount: number): string {
 
 /** Progress number in the display unit (hizb for quarter goals). */
 export const displayQty = (unit: GoalUnit, n: number) => round(unit === 'quarter' ? n / 4 : n);
+
+/** Parses a number typed with Western or Arabic-Indic digits ("1.5", "١٫٥", "1,5"); NaN if not a plain number. */
+export function parseNum(s: string): number {
+  const w = s.trim()
+    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x660))
+    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x6f0))
+    .replace(/[٫,]/g, '.');
+  return /^\d+(\.\d+)?$/.test(w) ? +w : NaN;
+}

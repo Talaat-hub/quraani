@@ -1,7 +1,7 @@
 import { SURAS } from '../src/quran/data';
 import {
   AYAH_COUNT, fromIndex, hizbOf, juzOf, measure, nextAyah, pageAyahCount, pageOf, planPortion,
-  quarterAyahCount, quarterOf, surahName, toIndex, validateRange,
+  quarterAyahCount, quarterOf, surahName, toGoalAmount, toIndex, validateRange,
 } from '../src/quran';
 
 const r = (surah: number, ayah: number) => ({ surah, ayah });
@@ -89,4 +89,13 @@ describe('measure & plan', () => {
   it('planPortion stops at the end of the Quran', () => {
     expect(planPortion(toIndex(r(114, 1)), 'page', 5).to).toEqual(r(114, 6));
   });
+});
+
+describe('custom goal amounts', () => {
+  it.each([
+    ['ayah', 20, 20], ['ayah', 6236, 6236], ['ayah', 6237, null], ['ayah', 2.5, null], ['ayah', 0, null],
+    ['page', 3, 3], ['page', 604, 604], ['page', 605, null],
+    ['quarter', 1.5, 6], ['quarter', 0.25, 1], ['quarter', 0.75, 3], ['quarter', 60, 240], ['quarter', 0.3, null], ['quarter', 61, null],
+    ['ayah', NaN, null],
+  ] as const)('%s %p -> %p', (unit, n, want) => expect(toGoalAmount(unit, n)).toBe(want));
 });

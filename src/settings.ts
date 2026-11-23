@@ -22,7 +22,7 @@ export function readSettings(raw: Record<string, string>): AppSettings {
     windowEnd: int(raw.window_end, 22 * 60),
     quietStart: int(raw.quiet_start, 0),
     quietEnd: int(raw.quiet_end, 0),
-    maxPerDay: int(raw.max_per_day, 6),
+    maxPerDay: int(raw.max_per_day, 0), // 0 = no limit: keep reminding until the goal is done
   };
 }
 

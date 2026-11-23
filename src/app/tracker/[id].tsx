@@ -3,16 +3,16 @@ import { useState } from 'react';
 import { Switch, TextInput } from 'react-native';
 import { fmtRange, RangePicker } from '../../components/RangePicker';
 import {
-  addSession, continuePoint, deleteSession, getDay, getTracker, setGoal, setPaused, setPlanned,
+  addSession, continuePoint, deleteSession, getDay, getTracker, MAX_INTERVAL_MIN, setGoal, setPaused, setPlanned,
   setPostponed, setRating, setReminder,
 } from '../../db/repo';
 import { isRated, isTrackerId, type TrackerId } from '../../domain/trackers';
-import { displayQty, fmtAmount, fmtNum } from '../../i18n';
-import { validateRange, type GoalUnit, type Range } from '../../quran';
+import { displayQty, fmtAmount, fmtNum, parseNum, type T } from '../../i18n';
+import { toGoalAmount, UNIT_MAX, validateRange, type GoalUnit, type Range } from '../../quran';
 import { useApp, useData } from '../../state';
 import { Button, Chip, ProgressBar, Row, Screen, Section, StatusBadge, Txt } from '../../ui';
 
-const INTERVALS = [30, 60, 120, 180, 240, 360];
+const INTERVALS = [5, 15, 30, 60, 120, 180];
 const PRESETS: Record<GoalUnit, number[]> = { ayah: [3, 5, 10, 20], page: [1, 2, 5, 10], quarter: [1, 2, 3, 4, 8] };
 
 export default function TrackerScreen() {
@@ -29,7 +29,6 @@ function Tracker({ id }: { id: TrackerId }) {
   }), [id]);
   const [draft, setDraft] = useState<Range | null>(null);
   const [editPlan, setEditPlan] = useState(false);
-  const [custom, setCustom] = useState('');
 
   if (!data?.rec) return <Screen />;
   const { rec, tracker } = data;
@@ -128,16 +127,12 @@ function Tracker({ id }: { id: TrackerId }) {
               onPress={() => act((db) => setGoal(db, id, tracker.goalUnit, n, today))} />
           ))}
         </Row>
-        {tracker.goalUnit !== 'quarter' && (
-          <Row>
-            <TextInput
-              value={custom} onChangeText={setCustom} keyboardType="number-pad" placeholder={t('tr.customAmount')}
-              placeholderTextColor={c.muted} style={{ flexGrow: 1, minHeight: 44, borderWidth: 1, borderColor: c.border, borderRadius: 10, paddingHorizontal: 12, color: c.text }}
-            />
-            <Button title={t('tr.save')} kind="secondary" disabled={!/^\d+$/.test(custom) || +custom < 1}
-              onPress={() => act((db) => setGoal(db, id, tracker.goalUnit, +custom, today)).then(() => setCustom(''))} />
-          </Row>
-        )}
+        <NumberField
+          key={tracker.goalUnit} placeholder={t(`tr.custom.${tracker.goalUnit}`)} decimal={tracker.goalUnit === 'quarter'}
+          parse={(n) => toGoalAmount(tracker.goalUnit, n)}
+          onSave={(v) => act((db) => setGoal(db, id, tracker.goalUnit, v, today))}
+        />
+        <Txt muted size={13}>{t(`tr.customHint.${tracker.goalUnit}`, { max: displayQty(tracker.goalUnit, UNIT_MAX[tracker.goalUnit]) })}</Txt>
       </Section>
 
       <Section title={t('tr.reminders')}>
@@ -147,14 +142,21 @@ function Tracker({ id }: { id: TrackerId }) {
             onValueChange={(v) => act((db) => setReminder(db, id, v, tracker.reminderIntervalMin))} />
         </Row>
         {tracker.reminderEnabled && (
-          <Row>
-            <Txt muted>{t('tr.every')}</Txt>
-            {INTERVALS.map((m) => (
-              <Chip key={m} label={m < 60 ? t('unit.min', { n: m }) : t('unit.hour', { n: m / 60 })}
-                selected={tracker.reminderIntervalMin === m}
-                onPress={() => act((db) => setReminder(db, id, true, m))} />
-            ))}
-          </Row>
+          <>
+            <Txt>{t('tr.everyNow', { v: fmtInterval(t, tracker.reminderIntervalMin) })}</Txt>
+            <Row>
+              {INTERVALS.map((m) => (
+                <Chip key={m} label={fmtInterval(t, m)} selected={tracker.reminderIntervalMin === m}
+                  onPress={() => act((db) => setReminder(db, id, true, m))} />
+              ))}
+            </Row>
+            <NumberField
+              placeholder={t('tr.customInterval')}
+              parse={(n) => (Number.isInteger(n) && n >= 1 && n <= MAX_INTERVAL_MIN ? n : null)}
+              onSave={(m) => act((db) => setReminder(db, id, true, m))}
+            />
+            {tracker.reminderIntervalMin < 15 && <Txt muted size={13}>{t('tr.shortNote')}</Txt>}
+          </>
         )}
       </Section>
 
@@ -163,6 +165,28 @@ function Tracker({ id }: { id: TrackerId }) {
         onPress={() => act((db) => setPaused(db, id, !tracker.paused, today))}
       />
     </Screen>
+  );
+}
+
+const fmtInterval = (t: T, m: number) => (m % 60 ? t('unit.min', { n: m }) : t('unit.hour', { n: m / 60 }));
+
+/** Number box (Western or Arabic digits) + Save; `parse` returns the value to save, or null if the text isn't valid. */
+function NumberField({ placeholder, decimal, parse, onSave }: {
+  placeholder: string; decimal?: boolean; parse: (n: number) => number | null; onSave: (v: number) => Promise<unknown>;
+}) {
+  const { c, t } = useApp();
+  const [text, setText] = useState('');
+  const value = parse(parseNum(text));
+  return (
+    <Row>
+      <TextInput
+        value={text} onChangeText={setText} keyboardType={decimal ? 'decimal-pad' : 'number-pad'}
+        placeholder={placeholder} accessibilityLabel={placeholder} placeholderTextColor={c.muted}
+        style={{ flexGrow: 1, minHeight: 44, borderWidth: 1, borderColor: text && value == null ? c.danger : c.border, borderRadius: 10, paddingHorizontal: 12, color: c.text }}
+      />
+      <Button title={t('tr.save')} kind="secondary" disabled={value == null}
+        onPress={() => value != null && onSave(value).then(() => setText(''))} />
+    </Row>
   );
 }
 
