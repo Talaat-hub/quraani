@@ -7,6 +7,20 @@ revision, and get gentle reminders until the day's goal is done. Arabic and Engl
 Built with Expo (SDK 58), React Native, TypeScript, Expo Router, SQLite and local notifications.
 No account, no server, no internet needed.
 
+## Install on Android
+
+Download `Quraani-<version>.apk` from [Releases](https://github.com/Talaat-hub/quraani/releases) on your phone,
+open it and allow "Install unknown apps" for your browser or file manager when asked. Builds are for 64-bit
+phones (arm64). Newer APKs install over older ones and keep your data.
+
+To build the APK yourself (after the Windows setup below):
+
+```bash
+cd android
+./gradlew app:assembleRelease -PreactNativeArchitectures=arm64-v8a,x86_64
+# -> android/app/build/outputs/apk/release/app-release.apk
+```
+
 ## Run it
 
 Requirements: Node 22.5+ (tests use `node:sqlite`), and Android Studio or Xcode for a development build.

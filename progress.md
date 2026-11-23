@@ -157,7 +157,12 @@ Missing: UI/component tests, on-device notification delivery tests.
 ## 10. Known Issues and Risks
 - Only partly exercised on an emulator (see §5). RTL forcing requires a dev/production build, not Expo Go.
   In debug builds `Updates.reloadAsync()` throws, so `syncDirection` falls back to `DevSettings.reload()`;
-  the release-build path (`reloadAsync`) is untested.
+  The release path (`reloadAsync`) was checked on the emulator with the 1.0.0 APK: AR ↔ EN reloads correctly.
+- Release APKs are signed with the template's debug keystore (`android/app/debug.keystore`, same for every
+  prebuild). Fine for sideloading and in-place updates; a Play Store release needs a private upload key
+  (EAS credentials or a keystore + signing config plugin) — switching keys means reinstalling the app.
+- Display: a quarter-hizb goal shows progress as "0.1 of Quarter hizb" (done in hizb vs goal phrase);
+  should read in the same unit as the goal.
 - Local Android builds on Windows need the short project path and `cmake.dir` setup (§2, README).
 - Dev only: a Fast Refresh while boot is running can log "boot failed: Access to closed resource" (old SQLite
   handle closed by the remount). Not seen on cold start; restart the app if it appears.
@@ -180,6 +185,10 @@ local reminders), tests/typecheck/bundle green, docs written, initial push to Gi
 emulator; added `expo-system-ui` (Android dark/light UI style) and the dev-build RTL reload fallback.
 Later: goal change re-plans after recording; custom amounts for all units incl. hizb; custom reminder interval
 (≥1 min, DB v2); "No limit" daily cap (new default); per-platform pending cap. Checked on the emulator in AR.
+Release 1.0.0: `assembleRelease` for arm64-v8a + x86_64 (54.7 MB), installed over the debug build on the
+emulator (data kept), standalone launch + language switch verified, published as GitHub release `v1.0.0`.
+Next release: bump `version` and add/bump `android.versionCode` in app.json (then prebuild) so each APK is a
+distinct, newer version (Android refuses only lower versionCodes).
 
 ## 12. Next Actions
 1. Walk every screen in EN and AR on the emulator (`npx expo run:android`, AVD `Quraani_API36`); fix what breaks.
