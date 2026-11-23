@@ -13,6 +13,11 @@ Download `Quraani-<version>.apk` from [Releases](https://github.com/Talaat-hub/q
 open it and allow "Install unknown apps" for your browser or file manager when asked. Builds are for 64-bit
 phones (arm64). Newer APKs install over older ones and keep your data.
 
+For reminders: allow notifications, then tap **Allow on-time reminders** on the Today screen and switch on
+"Alarms & reminders" (Android 12+; without it Android may deliver reminders up to an hour late). Settings →
+**Send a test reminder** checks that notifications reach you. On phones with aggressive battery saving
+(Samsung, Xiaomi…), set the app's battery usage to "Unrestricted".
+
 To build the APK yourself (after the Windows setup below):
 
 ```bash

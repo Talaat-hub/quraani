@@ -1,6 +1,6 @@
 import { addDays, dayKey, fromHHMM, toHHMM } from '../src/domain/dates';
 import { MAX_PENDING, planReminders, type ReminderSettings, type TrackerReminderState } from '../src/domain/reminders';
-import { parseNum } from '../src/i18n';
+import { fmtTime, makeT, parseNum } from '../src/i18n';
 import { completion, deriveStatus, needsReminder } from '../src/domain/status';
 
 describe('status', () => {
@@ -114,4 +114,37 @@ describe('short intervals and no daily limit', () => {
 describe('parseNum', () => {
   it.each([['20', 20], ['١٫٥', 1.5], ['۲۰', 20], ['1,5', 1.5], [' 7 ', 7], ['', NaN], ['1.', NaN], ['-3', NaN], ['abc', NaN]] as const)(
     '%p -> %p', (s, n) => expect(parseNum(s)).toBe(n));
+});
+
+describe('reminder window crossing midnight', () => {
+  const tracker = (p: Partial<TrackerReminderState> = {}): TrackerReminderState =>
+    ({ id: 'muraja', enabled: true, intervalMin: 120, paused: false, needsToday: true, snoozedUntil: null, ...p });
+  const hhmm = (at: number) => toHHMM(new Date(at).getHours() * 60 + new Date(at).getMinutes());
+  const night: ReminderSettings = { enabled: true, windowStart: 14 * 60, windowEnd: 4 * 60, quietStart: 0, quietEnd: 0, maxPerDay: 0 };
+
+  it('14:00 → 04:00 reminds in the evening and after midnight, not in between', () => {
+    const now = new Date(2026, 10, 22, 5, 3).getTime(); // 05:03, outside the window
+    const plan = planReminders(now, night, [tracker()], 2);
+    const today = plan.filter((p) => new Date(p.at).getDate() === 22).map((p) => hhmm(p.at));
+    const tomorrow = plan.filter((p) => new Date(p.at).getDate() === 23).map((p) => hhmm(p.at));
+    expect(today).toEqual(['14:00', '16:00', '18:00', '20:00', '22:00']);
+    expect(tomorrow).toEqual(['00:00', '02:00', '04:00', '14:00', '16:00', '18:00', '20:00', '22:00']);
+  });
+  it('every minute right after the start, and equal start/end means all day', () => {
+    const now = new Date(2026, 10, 22, 14, 0, 30).getTime();
+    expect(planReminders(now, { ...night }, [tracker({ intervalMin: 1 })], 1).slice(0, 2).map((p) => hhmm(p.at))).toEqual(['14:01', '14:02']);
+    const allDay = planReminders(new Date(2026, 10, 22, 0, 0, 30).getTime(), { ...night, windowStart: 0, windowEnd: 0 }, [tracker({ intervalMin: 60 })], 1);
+    expect(allDay.map((p) => hhmm(p.at))).toHaveLength(23); // 01:00 … 23:00
+  });
+});
+
+describe('fmtTime', () => {
+  const en = makeT('en'), ar = makeT('ar');
+  it.each([
+    [0, '00:00', '12:00 AM'], [9 * 60 + 5, '09:05', '9:05 AM'], [12 * 60, '12:00', '12:00 PM'], [23 * 60 + 59, '23:59', '11:59 PM'],
+  ] as const)('%p min', (m, h24, h12) => {
+    expect(fmtTime(en, 'en', '24', m)).toBe(h24);
+    expect(fmtTime(en, 'en', '12', m)).toBe(h12);
+  });
+  it('Arabic digits and ص/م', () => expect(fmtTime(ar, 'ar', '12', 14 * 60 + 5)).toBe('٢:٠٥ م'));
 });

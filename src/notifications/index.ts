@@ -1,6 +1,6 @@
 import * as N from 'expo-notifications';
 import { Platform } from 'react-native';
-import { getDay, getSettings, getTrackers, setSnooze } from '../db/repo';
+import { getDay, getSettings, getTrackers, setSetting, setSnooze } from '../db/repo';
 import type { Db } from '../db/schema';
 import { dayKey } from '../domain/dates';
 import { MAX_PENDING, planReminders } from '../domain/reminders';
@@ -45,6 +45,30 @@ export async function requestPermission(): Promise<boolean> {
   return (await N.requestPermissionsAsync()).granted;
 }
 
+/**
+ * Android 12+ only delivers reminders on time with the "Alarms & reminders" permission; without it they are
+ * inexact and can arrive up to an hour late (Android 14+ denies it by default). Always true elsewhere.
+ */
+export async function exactAlarmsAllowed(): Promise<boolean> {
+  return Platform.OS !== 'android' || (await N.getExactAlarmPermissionsAsync()).granted;
+}
+
+/** Opens the system "Alarms & reminders" screen; resolves when the user comes back. */
+export async function requestExactAlarms(): Promise<boolean> {
+  return Platform.OS !== 'android' || (await N.requestExactAlarmPermissionsAsync()).granted;
+}
+
+/** Fires a sample reminder in a few seconds so users can check notifications work on their phone. */
+export async function sendTestReminder(lang: 'ar' | 'en'): Promise<boolean> {
+  if (!(await N.getPermissionsAsync()).granted && !(await requestPermission())) return false;
+  const t = makeT(lang);
+  await N.scheduleNotificationAsync({
+    content: { title: t('appName'), body: t('notif.testBody'), data: { kind: 'test' } },
+    trigger: { type: N.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 5, channelId: CHANNEL },
+  });
+  return true;
+}
+
 // Serialize syncs: overlapping runs could otherwise schedule the same reminder twice.
 let queue: Promise<void> = Promise.resolve();
 export function syncReminders(db: Db): Promise<void> {
@@ -55,8 +79,15 @@ export function syncReminders(db: Db): Promise<void> {
 async function doSync(db: Db) {
   const settings = readSettings(await getSettings(db));
   const t = makeT(settings.lang);
-  const existing = (await N.getAllScheduledNotificationsAsync()).filter((n) => n.content.data?.kind === 'reminder');
   const granted = (await N.getPermissionsAsync()).granted;
+  // Alarms keep the exact/inexact mode they were scheduled with, so reschedule everything when that changes.
+  const exact = String(await exactAlarmsAllowed());
+  let existing = (await N.getAllScheduledNotificationsAsync()).filter((n) => n.content.data?.kind === 'reminder');
+  if ((await getSettings(db)).exact_alarms !== exact) {
+    for (const e of existing) await N.cancelScheduledNotificationAsync(e.identifier);
+    existing = [];
+    await setSetting(db, 'exact_alarms', exact);
+  }
 
   const today = dayKey(new Date());
   const trackers = await getTrackers(db);

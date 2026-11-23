@@ -28,7 +28,9 @@ export type PlannedReminder = { id: string; trackerId: TrackerId; at: number };
  */
 export const MAX_PENDING = { ios: 60, android: 400 } as const;
 
-const inQuiet = (s: ReminderSettings, m: number) =>
+const DAY = 24 * 60;
+
+const inQuiet =(s: ReminderSettings, m: number) =>
   s.quietStart === s.quietEnd ? false
     : s.quietStart < s.quietEnd ? m >= s.quietStart && m < s.quietEnd
       : m >= s.quietStart || m < s.quietEnd;
@@ -46,19 +48,26 @@ export function planReminders(
 ): PlannedReminder[] {
   if (!settings.enabled) return [];
   const today = dayKey(new Date(now));
-  const end = settings.windowEnd > settings.windowStart ? settings.windowEnd : 24 * 60 - 1;
+  // The window may cross midnight (e.g. 14:00 → 04:00); equal start/end means all day.
+  const span = (settings.windowEnd - settings.windowStart + DAY) % DAY || DAY - 1;
   const out: PlannedReminder[] = [];
 
   for (const t of trackers) {
     if (!t.enabled || t.paused || !(t.intervalMin >= 1)) continue;
+    // Minutes of a calendar day that get a reminder: every interval from the window start, folded into 0..1439.
+    const minutes: number[] = [];
+    for (let k = 0; k * t.intervalMin <= span; k++) {
+      const m = (settings.windowStart + k * t.intervalMin) % DAY;
+      if (!inQuiet(settings, m)) minutes.push(m);
+    }
+    minutes.sort((a, b) => a - b);
     for (let d = 0; d < daysAhead; d++) {
       if (d === 0 && !t.needsToday) continue;
       const day = addDays(today, d);
       const base = parseDay(day);
       const snooze = d === 0 && t.snoozedUntil && t.snoozedUntil > now ? t.snoozedUntil : 0;
       const times: number[] = snooze ? [snooze] : [];
-      for (let m = settings.windowStart; m <= end; m += t.intervalMin) {
-        if (inQuiet(settings, m)) continue;
+      for (const m of minutes) {
         const at = new Date(base.getFullYear(), base.getMonth(), base.getDate(), Math.floor(m / 60), m % 60).getTime();
         if (at > now && at > snooze) times.push(at);
       }

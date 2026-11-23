@@ -71,7 +71,13 @@ Decisions:
    Al-Fatiha after An-Nas). Nothing is silently carried over: the remaining portion simply becomes tomorrow's
    suggested start, shown as "Continues from your last recorded ayah". Revision plans are freely editable.
 9. **Reminders** (`planReminders`, pure + tested): for today and the next 2 days, every `interval` minutes
-   inside the reminder window, skipping quiet hours (may wrap midnight). Interval: presets or any 1–1440 min.
+   inside the reminder window, skipping quiet hours. Both may cross midnight (window 14:00 → 04:00 reminds
+   14:00–23:59 and 00:00–04:00; equal start/end = all day). Interval: presets or any 1–1440 min.
+   **Exact alarms (Android 12+)**: without "Alarms & reminders" (`SCHEDULE_EXACT_ALARM`, declared in app.json,
+   denied by default on Android 14+) expo-notifications falls back to inexact alarms with a ~1 h window — this
+   is why 1-minute reminders "didn't work" in 1.0.0. Today screen asks for it; `doSync` cancels and
+   reschedules everything when the permission state changes (stored as setting `exact_alarms`).
+   USE_EXACT_ALARM deliberately not used (Play policy: alarm/calendar apps only).
    Per-tracker daily cap is optional (default "No limit" = remind until done). Total pending is capped by
    what the OS holds: 60 on iOS (limit 64), 400 on Android (~500 alarms/app), earliest first; with very short
    intervals that is how far ahead reminders reach until the next re-plan. Future days are scheduled pessimistically so reminders continue if the app is
@@ -95,7 +101,9 @@ Decisions:
 - History per tracker with stats (completed days, 7/30-day rate, distinct memorized ayahs, revised ayahs,
   pages read, average rating) and "goal changed" markers
 - Settings: language (AR/EN, persisted, RTL reload), theme (system/light/dark), reminders on/off, window,
-  quiet hours, max per tracker per day, Mushaf info, WhatsApp note, delete all data, About/attribution
+  quiet hours (tap a time → bottom-sheet wheel picker, drag hour/minute/AM-PM, 12/24-hour toggle saved as
+  setting `clock`, default from the device), max per tracker per day, "Send a test reminder", Mushaf info,
+  WhatsApp note, delete all data, About/attribution
 - Local reminders: Android channel, iOS/Android category with Snooze/Open actions, tap opens the tracker,
   cancel on completion/postpone/pause, re-plan on foreground (day/timezone changes)
 
@@ -167,8 +175,9 @@ Missing: UI/component tests, on-device notification delivery tests.
 - Dev only: a Fast Refresh while boot is running can log "boot failed: Access to closed resource" (old SQLite
   handle closed by the remount). Not seen on cold start; restart the app if it appears.
 - Lint (`npx expo lint`, eslint-config-expo) added 2026-11-23 and clean; two rule suppressions are commented in place.
-- Notification times can be delayed by Android Doze / OEM battery savers; exact alarms intentionally not requested.
-  Very short intervals (1–5 min) may be grouped while the phone is idle.
+- Notification times: on time once "Alarms & reminders" is allowed; without it Android can delay them up to
+  ~1 h. Some OEMs (Samsung, Xiaomi…) still defer alarms for apps under battery optimization — if reminders
+  are late on a phone, set the app's battery usage to "Unrestricted".
 - Pending-reminder cap: with very short intervals reminders run out after cap × interval (e.g. 1 min, one
   tracker: ~6.6 h on Android, 1 h on iOS) unless the app re-plans (open, any change, tapping a reminder).
   Possible upgrade: Android background task (expo-background-task) to top up while the app is closed.
@@ -188,10 +197,18 @@ Later: goal change re-plans after recording; custom amounts for all units incl. 
 Release 1.0.0: `assembleRelease` for arm64-v8a + x86_64 (54.7 MB), installed over the debug build on the
 emulator (data kept), standalone launch + language switch verified, published as GitHub release `v1.0.0`.
 Next release: bump `version` and add/bump `android.versionCode` in app.json (then prebuild) so each APK is a
-distinct, newer version (Android refuses only lower versionCodes).
+distinct, newer version (Android refuses only lower versionCodes). Note: a prebuild that regenerates `android/`
+deletes `android/local.properties` — re-add `cmake.dir` (README) before building.
+1.1.0 (versionCode 2): emulator showed 1-min reminders never arriving — alarms were inexact with a 1 h window.
+Added SCHEDULE_EXACT_ALARM + Today prompt + reschedule on change; reminder window may cross midnight; wheel
+time picker with 12/24-hour; test-reminder button (delivery verified on the emulator); "Open settings" when
+notifications are blocked; plain "Save" label in number fields.
 
 ## 12. Next Actions
 1. Walk every screen in EN and AR on the emulator (`npx expo run:android`, AVD `Quraani_API36`); fix what breaks.
-2. Test reminders on device: set interval 30m, complete a tracker → its pending reminders disappear
-   (`getAllScheduledNotificationsAsync`), pause → none, kill app → reminders still arrive.
+2. On the user's phone (1.1.0): allow notifications + "Alarms & reminders", tap "Send a test reminder", set
+   a 1-min interval inside the window → reminders arrive each minute; complete the goal → they stop; kill the
+   app → they still arrive.
+   Dev tip: this project has no expo-dev-client, so debug builds load JS from device `localhost:8081`
+   (`adb reverse tcp:8081 tcp:<metro port>`).
 3. Then implement backup/restore (Remaining Tasks #3) and UI tests (#4).

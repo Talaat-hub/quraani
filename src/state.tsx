@@ -38,6 +38,7 @@ export function AppProvider({ initial, children }: PropsWithChildren<{ initial: 
     setToday(day);
     setRev((r) => r + 1);
     await syncReminders(db);
+    setRev((r) => r + 1); // again, so "next reminder" reflects the freshly scheduled plan
   }, [db]);
 
   // Foregrounding handles new days, timezone changes and time spent with the app closed.

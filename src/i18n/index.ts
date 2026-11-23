@@ -35,3 +35,11 @@ export function parseNum(s: string): number {
     .replace(/[٫,]/g, '.');
   return /^\d+(\.\d+)?$/.test(w) ? +w : NaN;
 }
+
+/** "14:05" on a 24-hour clock, "2:05 PM" / "٢:٠٥ م" on a 12-hour clock. `min` = minutes since midnight. */
+export function fmtTime(t: T, lang: Lang, clock: '12' | '24', min: number): string {
+  const h = Math.floor(min / 60) % 24;
+  const mm = String(min % 60).padStart(2, '0');
+  if (clock === '24') return fmtNum(lang, `${String(h).padStart(2, '0')}:${mm}`);
+  return `${fmtNum(lang, `${h % 12 || 12}:${mm}`)} ${t(h < 12 ? 'time.am' : 'time.pm')}`;
+}

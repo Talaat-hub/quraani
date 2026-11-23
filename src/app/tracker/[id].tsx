@@ -184,7 +184,7 @@ function NumberField({ placeholder, decimal, parse, onSave }: {
         placeholder={placeholder} accessibilityLabel={placeholder} placeholderTextColor={c.muted}
         style={{ flexGrow: 1, minHeight: 44, borderWidth: 1, borderColor: text && value == null ? c.danger : c.border, borderRadius: 10, paddingHorizontal: 12, color: c.text }}
       />
-      <Button title={t('tr.save')} kind="secondary" disabled={value == null}
+      <Button title={t('common.save')} kind="secondary" disabled={value == null}
         onPress={() => value != null && onSave(value).then(() => setText(''))} />
     </Row>
   );

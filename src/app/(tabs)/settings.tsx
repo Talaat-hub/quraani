@@ -1,11 +1,12 @@
 import Constants from 'expo-constants';
 import * as N from 'expo-notifications';
 import { useState } from 'react';
-import { Alert, Switch, TextInput } from 'react-native';
+import { Alert, Linking, Pressable, Switch } from 'react-native';
+import { TimePicker } from '../../components/TimePicker';
 import { deleteAllData, setSetting } from '../../db/repo';
-import { fromHHMM, toHHMM } from '../../domain/dates';
 import { syncDirection } from '../../direction';
-import { fmtNum } from '../../i18n';
+import { fmtNum, fmtTime } from '../../i18n';
+import { sendTestReminder } from '../../notifications';
 import { SETTING_KEYS } from '../../settings';
 import { useApp } from '../../state';
 import { Button, Chip, Row, Screen, Section, Txt } from '../../ui';
@@ -43,13 +44,13 @@ export default function Settings() {
           <>
             <Txt muted size={14}>{t('set.window')}</Txt>
             <Row>
-              <TimeField label={t('set.windowStart')} value={settings.windowStart} onSave={(m) => save('windowStart', m)} />
-              <TimeField label={t('set.windowEnd')} value={settings.windowEnd} onSave={(m) => save('windowEnd', m)} />
+              <TimeField label={t('set.windowStart')} title={`${t('set.window')} – ${t('set.windowStart')}`} value={settings.windowStart} onSave={(m) => save('windowStart', m)} />
+              <TimeField label={t('set.windowEnd')} title={`${t('set.window')} – ${t('set.windowEnd')}`} value={settings.windowEnd} onSave={(m) => save('windowEnd', m)} />
             </Row>
             <Txt muted size={14}>{t('set.quiet')}</Txt>
             <Row>
-              <TimeField label={t('set.windowStart')} value={settings.quietStart} onSave={(m) => save('quietStart', m)} />
-              <TimeField label={t('set.windowEnd')} value={settings.quietEnd} onSave={(m) => save('quietEnd', m)} />
+              <TimeField label={t('set.windowStart')} title={`${t('set.quiet')} – ${t('set.windowStart')}`} value={settings.quietStart} onSave={(m) => save('quietStart', m)} />
+              <TimeField label={t('set.windowEnd')} title={`${t('set.quiet')} – ${t('set.windowEnd')}`} value={settings.quietEnd} onSave={(m) => save('quietEnd', m)} />
             </Row>
             <Txt muted size={13}>{t('set.quietNote')}</Txt>
             <Txt muted size={14}>{t('set.maxPerDay')}</Txt>
@@ -59,6 +60,16 @@ export default function Settings() {
               ))}
             </Row>
             <Txt muted size={13}>{t('set.osNote')}</Txt>
+            <Button
+              title={t('set.testReminder')} kind="secondary"
+              onPress={async () => {
+                if (await sendTestReminder(lang)) Alert.alert(t('set.testReminder'), t('set.testSent'));
+                else Alert.alert(t('set.testReminder'), t('today.notifDenied'), [
+                  { text: t('set.cancel'), style: 'cancel' },
+                  { text: t('today.openSettings'), onPress: () => Linking.openSettings() },
+                ]);
+              }}
+            />
           </>
         )}
       </Section>
@@ -92,20 +103,24 @@ export default function Settings() {
   );
 }
 
-/** HH:MM text field; saves on blur when valid. */
-function TimeField({ label, value, onSave }: { label: string; value: number; onSave: (min: number) => void }) {
-  const { c, t } = useApp();
-  const [text, setText] = useState(toHHMM(value));
-  const valid = fromHHMM(text) != null;
+/** Shows a time in the user's 12/24-hour format; tapping opens the wheel picker. */
+function TimeField({ label, title, value, onSave }: { label: string; title: string; value: number; onSave: (min: number) => void }) {
+  const { c, t, settings } = useApp();
+  const [open, setOpen] = useState(false);
+  const shown = fmtTime(t, settings.lang, settings.clock, value);
   return (
     <>
       <Txt muted size={13}>{label}</Txt>
-      <TextInput
-        value={text} onChangeText={setText} keyboardType="numbers-and-punctuation" maxLength={5}
-        accessibilityLabel={label} accessibilityHint={t('set.timeInvalid')}
-        onBlur={() => { const m = fromHHMM(text); if (m != null && m !== value) onSave(m); else if (m == null) setText(toHHMM(value)); }}
-        style={{ width: 80, minHeight: 44, borderWidth: 1, borderRadius: 10, textAlign: 'center', fontSize: 16, color: c.text, borderColor: valid ? c.border : c.danger }}
-      />
+      <Pressable
+        onPress={() => setOpen(true)} accessibilityRole="button" accessibilityLabel={`${title}: ${shown}`} accessibilityHint={t('time.pick')}
+        style={{ minWidth: 96, minHeight: 44, paddingHorizontal: 12, borderWidth: 1, borderRadius: 10, borderColor: c.border, alignItems: 'center', justifyContent: 'center' }}
+      >
+        <Txt size={16}>{shown}</Txt>
+      </Pressable>
+      {open && (
+        <TimePicker title={title} value={value} onClose={() => setOpen(false)}
+          onSave={(m) => { setOpen(false); if (m !== value) onSave(m); }} />
+      )}
     </>
   );
 }

@@ -1,13 +1,12 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable } from 'react-native';
+import { Linking, Pressable } from 'react-native';
 import { fmtRange } from '../../components/RangePicker';
 import { addSession, getDay, type DayRecord } from '../../db/repo';
-import { toHHMM } from '../../domain/dates';
 import { needsReminder } from '../../domain/status';
 import { TRACKERS } from '../../domain/trackers';
-import { displayQty, fmtAmount, fmtNum } from '../../i18n';
-import { nextReminder, permissionState, requestPermission } from '../../notifications';
+import { displayQty, fmtAmount, fmtTime } from '../../i18n';
+import { exactAlarmsAllowed, nextReminder, permissionState, requestExactAlarms, requestPermission } from '../../notifications';
 import { useApp, useData } from '../../state';
 import { Button, Card, ProgressBar, Row, Screen, StatusBadge, Txt } from '../../ui';
 
@@ -16,6 +15,7 @@ export default function Today() {
   const [permTick, setPermTick] = useState(0);
   const records = useData((db, today) => Promise.all(TRACKERS.map((id) => getDay(db, id, today))));
   const perm = useData(() => permissionState(), [permTick]);
+  const exact = useData(() => exactAlarmsAllowed(), [permTick]);
   const next = useData(() => nextReminder());
 
   if (!records) return <Screen />;
@@ -31,9 +31,18 @@ export default function Today() {
       {perm && perm !== 'granted' && settings.enabled && (
         <Card>
           <Txt>{perm === 'denied' ? t('today.notifDenied') : t('today.enableNotif')}</Txt>
-          {perm === 'undetermined' && (
+          {perm === 'undetermined' ? (
             <Button title={t('today.enableNotifBtn')} onPress={async () => { await requestPermission(); setPermTick((x) => x + 1); await act(async () => {}); }} />
+          ) : (
+            <Button title={t('today.openSettings')} kind="secondary" onPress={() => Linking.openSettings()} />
           )}
+        </Card>
+      )}
+
+      {perm === 'granted' && exact === false && settings.enabled && (
+        <Card>
+          <Txt>{t('today.exactNote')}</Txt>
+          <Button title={t('today.exactBtn')} onPress={async () => { await requestExactAlarms(); setPermTick((x) => x + 1); await act(async () => {}); }} />
         </Card>
       )}
 
@@ -42,7 +51,7 @@ export default function Today() {
       {perm === 'granted' && (
         <Txt muted size={13}>
           {next ? t('today.nextReminder', {
-            time: fmtNum(settings.lang, toHHMM(new Date(next.at).getHours() * 60 + new Date(next.at).getMinutes())),
+            time: fmtTime(t, settings.lang, settings.clock, new Date(next.at).getHours() * 60 + new Date(next.at).getMinutes()),
             tracker: t(`tracker.${next.trackerId}`),
           }) : t('today.noReminder')}
         </Txt>
