@@ -203,6 +203,11 @@ deletes `android/local.properties` — re-add `cmake.dir` (README) before buildi
 Added SCHEDULE_EXACT_ALARM + Today prompt + reschedule on change; reminder window may cross midnight; wheel
 time picker with 12/24-hour; test-reminder button (delivery verified on the emulator); "Open settings" when
 notifications are blocked; plain "Save" label in number fields.
+Web version (for iPhone users; App Store Expo Go stops at SDK 54 and TestFlight needs a paid Apple account):
+react-native-web + `web.output: single`, `experiments.baseUrl: /quraani`, hosted on GitHub Pages (gh-pages
+branch, `npm run deploy:web`). expo-sqlite web stores data in OPFS; COOP/COEP headers are only needed for its sync
+API, which the app doesn't use. `REMINDERS` (notifications module) hides all reminder UI on web; web confirm/alert
+replace RN Alert (a no-op on web). Checked in a desktop browser at phone width; not yet on an iPhone.
 
 ## 12. Next Actions
 1. Walk every screen in EN and AR on the emulator (`npx expo run:android`, AVD `Quraani_API36`); fix what breaks.

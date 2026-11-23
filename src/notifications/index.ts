@@ -12,6 +12,8 @@ import { readSettings } from '../settings';
 const CHANNEL = 'reminders';
 const CATEGORY = 'reminder';
 export const SNOOZE_MIN = 30;
+/** expo-notifications has no web support, so the web version has no reminders. */
+export const REMINDERS = Platform.OS !== 'web';
 
 /**
  * Local notifications only. Reminders are pre-scheduled as one-shot DATE triggers for today and
@@ -22,6 +24,7 @@ export const SNOOZE_MIN = 30;
  * same plan from syncReminders. See docs/WHATSAPP.md.
  */
 export async function setupNotifications(lang: 'ar' | 'en') {
+  if (!REMINDERS) return;
   const t = makeT(lang);
   N.setNotificationHandler({
     handleNotification: async () => ({ shouldPlaySound: true, shouldSetBadge: false, shouldShowBanner: true, shouldShowList: true }),
@@ -72,6 +75,7 @@ export async function sendTestReminder(lang: 'ar' | 'en'): Promise<boolean> {
 // Serialize syncs: overlapping runs could otherwise schedule the same reminder twice.
 let queue: Promise<void> = Promise.resolve();
 export function syncReminders(db: Db): Promise<void> {
+  if (!REMINDERS) return queue;
   queue = queue.then(() => doSync(db)).catch((e) => console.warn('syncReminders failed', e));
   return queue;
 }

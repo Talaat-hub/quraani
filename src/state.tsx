@@ -1,6 +1,6 @@
 import { useSQLiteContext } from 'expo-sqlite';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react';
-import { Alert, AppState, useColorScheme } from 'react-native';
+import { Alert, AppState, Platform, useColorScheme } from 'react-native';
 import { ensureDays, getSettings } from './db/repo';
 import type { Db } from './db/schema';
 import { dayKey } from './domain/dates';
@@ -55,7 +55,9 @@ export function AppProvider({ initial, children }: PropsWithChildren<{ initial: 
     } catch (e) {
       // Repository validation already prevents bad writes; tell the user instead of failing silently.
       console.warn(e);
-      Alert.alert(makeT(settings.lang)('error.generic'));
+      const msg = makeT(settings.lang)('error.generic');
+      if (Platform.OS === 'web') window.alert(msg); // react-native-web's Alert does nothing
+      else Alert.alert(msg);
     }
     await refresh();
   }, [db, refresh, settings.lang]);

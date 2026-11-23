@@ -1,12 +1,12 @@
 import Constants from 'expo-constants';
 import * as N from 'expo-notifications';
 import { useState } from 'react';
-import { Alert, Linking, Pressable, Switch } from 'react-native';
+import { Alert, Linking, Platform, Pressable, Switch } from 'react-native';
 import { TimePicker } from '../../components/TimePicker';
 import { deleteAllData, setSetting } from '../../db/repo';
 import { syncDirection } from '../../direction';
 import { fmtNum, fmtTime } from '../../i18n';
-import { sendTestReminder } from '../../notifications';
+import { REMINDERS, sendTestReminder } from '../../notifications';
 import { SETTING_KEYS } from '../../settings';
 import { useApp } from '../../state';
 import { Button, Chip, Row, Screen, Section, Txt } from '../../ui';
@@ -35,7 +35,7 @@ export default function Settings() {
         </Row>
       </Section>
 
-      <Section title={t('set.notifications')}>
+      {REMINDERS && <Section title={t('set.notifications')}>
         <Row style={{ justifyContent: 'space-between' }}>
           <Txt>{t('set.notifEnabled')}</Txt>
           <Switch value={settings.enabled} trackColor={{ true: c.primary }} onValueChange={(v) => save('enabled', v)} />
@@ -72,7 +72,7 @@ export default function Settings() {
             />
           </>
         )}
-      </Section>
+      </Section>}
 
       <Section title={t('set.mushaf')}>
         <Txt>{t('set.mushafValue')}</Txt>
@@ -86,13 +86,15 @@ export default function Settings() {
         <Txt muted size={14}>{t('set.dataNote')}</Txt>
         <Button
           title={t('set.deleteAll')} kind="danger"
-          onPress={() => Alert.alert(t('set.deleteAll'), t('set.deleteConfirm'), [
-            { text: t('set.cancel'), style: 'cancel' },
-            {
-              text: t('set.delete'), style: 'destructive',
-              onPress: () => act(async (db) => { await N.cancelAllScheduledNotificationsAsync(); await deleteAllData(db); }),
-            },
-          ])}
+          onPress={() => {
+            const del = () => act(async (db) => { if (REMINDERS) await N.cancelAllScheduledNotificationsAsync(); await deleteAllData(db); });
+            // react-native-web's Alert does nothing, so the browser's own confirm dialog asks instead.
+            if (Platform.OS === 'web') { if (window.confirm(t('set.deleteConfirm'))) del(); return; }
+            Alert.alert(t('set.deleteAll'), t('set.deleteConfirm'), [
+              { text: t('set.cancel'), style: 'cancel' },
+              { text: t('set.delete'), style: 'destructive', onPress: del },
+            ]);
+          }}
         />
       </Section>
 

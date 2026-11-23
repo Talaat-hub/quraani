@@ -7,7 +7,7 @@ import { View } from 'react-native';
 import { getSettings } from '../db/repo';
 import { migrate, type Db } from '../db/schema';
 import { syncDirection } from '../direction';
-import { handleResponse, setupNotifications } from '../notifications';
+import { handleResponse, REMINDERS, setupNotifications } from '../notifications';
 import { readSettings, type AppSettings } from '../settings';
 import { AppProvider, useApp } from '../state';
 import { COLORS } from '../theme';
@@ -47,6 +47,7 @@ function Shell() {
 
   // Tapping a reminder opens its tracker; the snooze action is handled without opening a screen.
   useEffect(() => {
+    if (!REMINDERS) return;
     const open = async (r: N.NotificationResponse | null) => {
       const id = r && await handleResponse(db, r);
       if (id) router.push({ pathname: '/tracker/[id]', params: { id } });

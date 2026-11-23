@@ -6,7 +6,7 @@ import { addSession, getDay, type DayRecord } from '../../db/repo';
 import { needsReminder } from '../../domain/status';
 import { TRACKERS } from '../../domain/trackers';
 import { displayQty, fmtAmount, fmtTime } from '../../i18n';
-import { exactAlarmsAllowed, nextReminder, permissionState, requestExactAlarms, requestPermission } from '../../notifications';
+import { exactAlarmsAllowed, nextReminder, permissionState, REMINDERS, requestExactAlarms, requestPermission } from '../../notifications';
 import { useApp, useData } from '../../state';
 import { Button, Card, ProgressBar, Row, Screen, StatusBadge, Txt } from '../../ui';
 
@@ -14,9 +14,10 @@ export default function Today() {
   const { t, settings, act } = useApp();
   const [permTick, setPermTick] = useState(0);
   const records = useData((db, today) => Promise.all(TRACKERS.map((id) => getDay(db, id, today))));
-  const perm = useData(() => permissionState(), [permTick]);
+  // No permission state on web hides every reminder card and line below.
+  const perm = useData(async () => (REMINDERS ? permissionState() : undefined), [permTick]);
   const exact = useData(() => exactAlarmsAllowed(), [permTick]);
-  const next = useData(() => nextReminder());
+  const next = useData(async () => (REMINDERS ? nextReminder() : null));
 
   if (!records) return <Screen />;
   const active = records.filter((r): r is DayRecord => !!r && r.status !== 'paused');

@@ -9,6 +9,7 @@ import {
 import { isRated, isTrackerId, type TrackerId } from '../../domain/trackers';
 import { displayQty, fmtAmount, fmtNum, parseNum, type T } from '../../i18n';
 import { toGoalAmount, UNIT_MAX, validateRange, type GoalUnit, type Range } from '../../quran';
+import { REMINDERS } from '../../notifications';
 import { useApp, useData } from '../../state';
 import { Button, Chip, ProgressBar, Row, Screen, Section, StatusBadge, Txt } from '../../ui';
 
@@ -135,7 +136,7 @@ function Tracker({ id }: { id: TrackerId }) {
         <Txt muted size={13}>{t(`tr.customHint.${tracker.goalUnit}`, { max: displayQty(tracker.goalUnit, UNIT_MAX[tracker.goalUnit]) })}</Txt>
       </Section>
 
-      <Section title={t('tr.reminders')}>
+      {REMINDERS && <Section title={t('tr.reminders')}>
         <Row style={{ justifyContent: 'space-between' }}>
           <Txt>{t('tr.remindersOn')}</Txt>
           <Switch value={tracker.reminderEnabled} trackColor={{ true: color }}
@@ -158,7 +159,7 @@ function Tracker({ id }: { id: TrackerId }) {
             {tracker.reminderIntervalMin < 15 && <Txt muted size={13}>{t('tr.shortNote')}</Txt>}
           </>
         )}
-      </Section>
+      </Section>}
 
       <Button
         title={tracker.paused ? t('tr.resume') : t('tr.pause')} kind={tracker.paused ? 'primary' : 'secondary'}

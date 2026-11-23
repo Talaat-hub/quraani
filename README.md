@@ -26,6 +26,12 @@ cd android
 # -> android/app/build/outputs/apk/release/app-release.apk
 ```
 
+## Use it on iPhone (web version)
+
+Open **https://talaat-hub.github.io/quraani/** in Safari, then Share → **Add to Home Screen** (opens full screen
+and keeps Safari from clearing its data after a week unused). The web version has no reminders (browsers can't
+schedule them) and keeps its data only in that browser. Publish a new web build with `npm run deploy:web`.
+
 ## Run it
 
 Requirements: Node 22.5+ (tests use `node:sqlite`), and Android Studio or Xcode for a development build.
